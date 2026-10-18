@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학급 과제물 제출 체크판</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .font-title {
+            font-family: 'Gowun Dodum', sans-serif;
+        }
+
+        /* 학생 카드 인터랙션 효과 */
+        .student-card {
+            transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .student-card:active {
+            transform: scale(0.94);
+        }
+
+        /* 제출 완료 스타일 (초록) */
+        .status-submitted {
+            background-color: #10b981;
+            border-color: #059669;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+        }
+        .status-submitted:hover {
+            background-color: #059669;
+        }
+
+        /* 미제출 스타일 (연한 빨강/흰색 바탕 + 빨간 테두리) */
+        .status-unsubmitted {
+            background-color: #ffffff;
+            border-color: #fca5a5;
+            color: #ef4444;
+            box-shadow: 0 2px 6px rgba(239, 68, 68, 0.08);
+        }
+        .status-unsubmitted:hover {
+            background-color: #fef2f2;
+            border-color: #f87171;
+        }
+
+        /* 커스텀 스크롤바 */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col justify-between p-3 sm:p-6">
+
+    <!-- 상단 헤더 -->
+    <header class="max-w-5xl mx-auto w-full mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 gap-3">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl sm:text-4xl">📋</span>
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-extrabold font-title text-slate-900 tracking-tight">과제물 제출 체크판</h1>
+                    <p class="text-xs sm:text-sm text-slate-500">담임 선생님을 위한 스마트 제출물 및 가정통신문 수거 도구</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2 self-end sm:self-auto text-xs text-slate-400">
+                <span id="saveStatusText" class="text-emerald-600 font-semibold flex items-center gap-1">
+                    💾 자동 저장 중
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨테이너 -->
+    <main class="max-w-5xl mx-auto w-full flex-1 flex flex-col gap-4 sm:gap-5">
+        
+        <!-- 컨트롤 패널 (과제 관리 & 설정) -->
+        <section class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-slate-200 flex flex-col gap-4">
+            
+            <!-- 과제 선택 및 관리 -->
+            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div class="w-full md:w-auto flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <label class="text-xs font-bold text-slate-600 whitespace-nowrap">📂 선택된 제출물:</label>
+                    <select id="taskSelect" onchange="changeActiveTask()" class="flex-1 max-w-md bg-slate-50 border border-slate-300 font-bold text-slate-800 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <!-- JS로 과제 목록 삽입 -->
+                    </select>
+                    <button onclick="openNewTaskModal()" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold px-3 py-2 rounded-xl transition text-xs whitespace-nowrap flex items-center justify-center gap-1 shadow-sm">
+                        <span>➕</span>
+                        <span>새 제출물 추가</span>
+                    </button>
+                    <button onclick="deleteCurrentTask()" class="bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-500 font-semibold px-2.5 py-2 rounded-xl transition text-xs whitespace-nowrap" title="현재 과제 삭제">
+                        🗑️ 삭제
+                    </button>
+                </div>
+                
+                <!-- 학생 수 설정 -->
+                <div class="flex items-center gap-2 self-end md:self-auto bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                    <label class="text-xs font-bold text-slate-600 pl-1">총 학생 수:</label>
+                    <input type="number" id="studentCountInput" min="1" max="60" value="24" onchange="updateStudentCount()" class="w-16 bg-white border border-slate-300 font-bold text-slate-800 text-center rounded-lg py-1 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    <span class="text-xs font-bold text-slate-500 pr-1">명</span>
+                </div>
+            </div>
+
+            <!-- 현황 요약 및 빠른 액션 버튼 -->
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                
+                <!-- 제출 통계 -->
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-xl border border-emerald-200 text-xs font-bold">
+                        <span>제출:</span>
+                        <span id="submittedCount" class="text-sm font-extrabold">0</span>명
+                    </div>
+                    <div class="flex items-center gap-1.5 bg-rose-50 text-rose-700 px-3 py-1.5 rounded-xl border border-rose-200 text-xs font-bold">
+                        <span>미제출:</span>
+                        <span id="unsubmittedCount" class="text-sm font-extrabold">0</span>명
+                    </div>
+                    <div class="text-xs font-bold text-slate-400">
+                        (전체 <span id="totalStudentsText">24</span>명)
+                    </div>
+                </div>
+
+                <!-- 주요 기능 버튼들 -->
+                <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                    <!-- 미제출 복사 버튼 -->
+                    <button onclick="copyUnsubmittedNumbers()" class="flex-1 sm:flex-initial bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-extrabold px-4 py-2 rounded-xl shadow transition text-xs flex items-center justify-center gap-1.5">
+                        <span>📋</span>
+                        <span>미제출 번호 복사</span>
+                    </button>
+                    
+                    <!-- 전체 완료 / 초기화 -->
+                    <button onclick="setAllStatus(true)" class="bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 font-bold px-3 py-2 rounded-xl transition text-xs">
+                        모두 제출
+                    </button>
+                    <button onclick="setAllStatus(false)" class="bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-800 font-bold px-3 py-2 rounded-xl transition text-xs">
+                        모두 초기화
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 학생 카드 그리드 메인 영역 -->
+        <section class="bg-white rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-200 flex-1">
+            <div class="mb-3 flex items-center justify-between text-xs text-slate-400 font-medium">
+                <span>💡 번호 카드를 클릭하면 제출 ↔ 미제출 상태가 바뀝니다.</span>
+                <span class="hidden sm:inline">🟢 제출 완료 / ⚪ 미제출</span>
+            </div>
+
+            <!-- 학생 번호 Grid -->
+            <div id="studentGrid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5 sm:gap-3.5">
+                <!-- JavaScript를 통해 dynamic하게 생성됩니다 -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 새 과제 추가 모달 팝업 -->
+    <div id="taskModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 text-center flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-150">
+            <div class="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-2xl font-bold">
+                📝
+            </div>
+            <div>
+                <h3 class="text-lg font-extrabold text-slate-800">새 제출물·가정통신문 추가</h3>
+                <p class="text-xs text-slate-500 mt-0.5">체크할 제출물 항목의 이름을 입력하세요.</p>
+            </div>
+
+            <div class="w-full">
+                <input type="text" id="newTaskInput" placeholder="예: 우유급식 신청서, 수학 익힘책 p.20" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none" onkeydown="if(event.key==='Enter') saveNewTask()">
+            </div>
+
+            <div class="flex w-full gap-2 pt-2 border-t border-slate-100">
+                <button onclick="closeTaskModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition text-xs">
+                    취소
+                </button>
+                <button onclick="saveNewTask()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl transition text-xs shadow">
+                    추가하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 푸터 -->
+    <footer class="mt-6 text-center text-xs text-slate-400">
+        담임 교사를 돕는 스마트 학급 관리 파트너 • 데이터는 브라우저 내에 안전하게 보관됩니다.
+    </footer>
+
+    <script>
+        // 전역 데이터 구조
+        const STORAGE_KEY = 'teacher_submission_checker_data_v1';
+
+        let appData = {
+            studentCount: 24,
+            activeTaskId: null,
+            tasks: [
+                { id: 'task_1', title: '가정통신문 동의서', status: {} },
+                { id: 'task_2', title: '일기장 제출', status: {} }
+            ]
+        };
+
+        // 앱 초기화
+        window.onload = function() {
+            loadSavedData();
+            renderTaskList();
+            renderGrid();
+        };
+
+        // LocalStorage 데이터 불러오기
+        function loadSavedData() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    appData = parsed;
+                } catch (e) {
+                    console.error("데이터 로드 실패:", e);
+                }
+            }
+
+            // 초기 유효성 체크
+            if (!appData.tasks || appData.tasks.length === 0) {
+                appData.tasks = [{ id: 'task_' + Date.now(), title: '가정통신문 동의서', status: {} }];
+            }
+
+            if (!appData.activeTaskId || !appData.tasks.find(t => t.id === appData.activeTaskId)) {
+                appData.activeTaskId = appData.tasks[0].id;
+            }
+
+            document.getElementById('studentCountInput').value = appData.studentCount;
+        }
+
+        // LocalStorage 데이터 저장
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+            
+            // UI 저장 피드백
+            const statusEl = document.getElementById('saveStatusText');
+            if (statusEl) {
+                statusEl.innerHTML = "💾 브라우저 자동 저장됨";
+                statusEl.classList.remove('opacity-0');
+                setTimeout(() => {
+                    statusEl.classList.add('opacity-0');
+                    setTimeout(() => {
+                        statusEl.innerHTML = "💾 자동 저장 중";
+                        statusEl.classList.remove('opacity-0');
+                    }, 300);
+                }, 1500);
+            }
+        }
+
+        // 현재 활성화된 과제 객체 반환
+        function getActiveTask() {
+            return appData.tasks.find(t => t.id === appData.activeTaskId) || appData.tasks[0];
+        }
+
+        // 학생 수 업데이트
+        function updateStudentCount() {
+            const val = parseInt(document.getElementById('studentCountInput').value) || 1;
+            appData.studentCount = Math.min(Math.max(val, 1), 60);
+            document.getElementById('studentCountInput').value = appData.studentCount;
+            saveData();
+            renderGrid();
+        }
+
+        // 과제 드롭다운 목록 생성
+        function renderTaskList() {
+            const selectEl = document.getElementById('taskSelect');
+            selectEl.innerHTML = '';
+
+            appData.tasks.forEach(task => {
+                const opt = document.createElement('option');
+                opt.value = task.id;
+                opt.textContent = task.title;
+                if (task.id === appData.activeTaskId) {
+                    opt.selected = true;
+                }
+                selectEl.appendChild(opt);
+            });
+        }
+
+        // 과제 변경 핸들러
+        function changeActiveTask() {
+            const selectEl = document.getElementById('taskSelect');
+            appData.activeTaskId = selectEl.value;
+            saveData();
+            renderGrid();
+        }
+
+        // 새 과제 추가 모달 열기/닫기
+        function openNewTaskModal() {
+            const modal = document.getElementById('taskModal');
+            const input = document.getElementById('newTaskInput');
+            input.value = '';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => input.focus(), 100);
+        }
+
+        function closeTaskModal() {
+            const modal = document.getElementById('taskModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // 새 과제 저장
+        function saveNewTask() {
+            const input = document.getElementById('newTaskInput');
+            const title = input.value.trim();
+            if (!title) {
+                showToast("⚠️ 제출물 이름을 입력해 주세요.");
+                return;
+            }
+
+            const newId = 'task_' + Date.now();
+            appData.tasks.push({
+                id: newId,
+                title: title,
+                status: {}
+            });
+
+            appData.activeTaskId = newId;
+            saveData();
+            renderTaskList();
+            renderGrid();
+            closeTaskModal();
+            showToast(`✨ '${title}' 항목이 추가되었습니다.`);
+        }
+
+        // 현재 과제 삭제
+        function deleteCurrentTask() {
+            if (appData.tasks.length <= 1) {
+                showToast("⚠️ 최소 하나의 제출물 항목은 유지되어야 합니다.");
+                return;
+            }
+
+            const currentTask = getActiveTask();
+            if (confirm(`'${currentTask.title}' 항목을 삭제하시겠습니까?`)) {
+                appData.tasks = appData.tasks.filter(t => t.id !== currentTask.id);
+                appData.activeTaskId = appData.tasks[0].id;
+                saveData();
+                renderTaskList();
+                renderGrid();
+                showToast("🗑️ 과제 항목이 삭제되었습니다.");
+            }
+        }
+
+        // 제출 상태 토글
+        function toggleStatus(studentNum) {
+            const task = getActiveTask();
+            if (!task.status) task.status = {};
+            
+            // boolean 토글
+            task.status[studentNum] = !task.status[studentNum];
+            
+            saveData();
+            renderGrid();
+        }
+
+        // 일괄 제출 처리 / 초기화
+        function setAllStatus(isSubmitted) {
+            const task = getActiveTask();
+            if (!task.status) task.status = {};
+
+            for (let i = 1; i <= appData.studentCount; i++) {
+                task.status[i] = isSubmitted;
+            }
+
+            saveData();
+            renderGrid();
+            showToast(isSubmitted ? "✅ 모든 학생을 제출로 변경했습니다." : "🔄 제출 현황을 모두 초기화했습니다.");
+        }
+
+        // 학생 카드 그리드 그리기
+        function renderGrid() {
+            const gridContainer = document.getElementById('studentGrid');
+            gridContainer.innerHTML = '';
+
+            const task = getActiveTask();
+            const statusMap = task.status || {};
+
+            let submittedNum = 0;
+
+            for (let i = 1; i <= appData.studentCount; i++) {
+                const isSubmitted = !!statusMap[i];
+                if (isSubmitted) submittedNum++;
+
+                const card = document.createElement('button');
+                card.onclick = () => toggleStatus(i);
+                card.className = `student-card h-20 sm:h-24 rounded-2xl border-2 flex flex-col items-center justify-center p-2 cursor-pointer font-bold relative ${
+                    isSubmitted ? 'status-submitted' : 'status-unsubmitted'
+                }`;
+
+                card.innerHTML = `
+                    <span class="text-xs ${isSubmitted ? 'text-emerald-100' : 'text-slate-400'}">학생</span>
+                    <span class="text-2xl sm:text-3xl font-extrabold tracking-tight my-0.5">${i}<span class="text-xs font-normal ml-0.5">번</span></span>
+                    <span class="text-[11px] font-extrabold mt-0.5 px-2 py-0.5 rounded-full ${
+                        isSubmitted 
+                            ? 'bg-emerald-700/40 text-emerald-100' 
+                            : 'bg-rose-100 text-rose-600'
+                    }">
+                        ${isSubmitted ? '✓ 제출 완료' : '미제출'}
+                    </span>
+                `;
+
+                gridContainer.appendChild(card);
+            }
+
+            // 통계 수치 업데이트
+            const unsubmittedNum = appData.studentCount - submittedNum;
+            document.getElementById('submittedCount').textContent = submittedNum;
+            document.getElementById('unsubmittedCount').textContent = unsubmittedNum;
+            document.getElementById('totalStudentsText').textContent = appData.studentCount;
+        }
+
+        // 미제출 번호 일괄 복사 기능
+        function copyUnsubmittedNumbers() {
+            const task = getActiveTask();
+            const statusMap = task.status || {};
+            
+            let unsubmittedList = [];
+            for (let i = 1; i <= appData.studentCount; i++) {
+                if (!statusMap[i]) {
+                    unsubmittedList.push(i);
+                }
+            }
+
+            if (unsubmittedList.length === 0) {
+                showToast("🎉 모든 학생이 제출을 완료했습니다!");
+                return;
+            }
+
+            const unsubmittedText = unsubmittedList.map(num => `${num}번`).join(', ');
+            const copyContent = `[${task.title} 미제출 안내]\n미제출 학생 (${unsubmittedList.length}명): ${unsubmittedText}`;
+
+            // 클립보드 복사 (iframe 호환용 execCommand 대체 fallback 포함)
+            const tempInput = document.createElement('textarea');
+            tempInput.value = copyContent;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            
+            try {
+                document.execCommand('copy');
+                showToast(`📋 미제출 번호가 복사되었습니다!\n(${unsubmittedList.length}명: ${unsubmittedText})`);
+            } catch (err) {
+                console.error("복사 실패:", err);
+                showToast("⚠️ 복사 실패. 직접 확인해 주세요.");
+            } finally {
+                document.body.removeChild(tempInput);
+            }
+        }
+
+        // 토스트 알림창
+        function showToast(message) {
+            const existingToast = document.getElementById('toastMsg');
+            if (existingToast) existingToast.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'toastMsg';
+            toast.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white border border-slate-700 px-5 py-3 rounded-2xl shadow-2xl text-xs sm:text-sm font-bold z-50 transition-all transform duration-300 opacity-0 translate-y-4 text-center whitespace-pre-line';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-0', 'translate-y-4');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+                setTimeout(() => toast.remove(), 300);
+            }, 2800);
+        }
+    </script>
+</body>
+</html>
